@@ -1,0 +1,278 @@
+---
+output:
+  pdf_document: default
+  html_document: default
+---
+### PARTE 1- Selección y preparación del dataset "Breast Cancer Wisconsin (Original)"
+
+CSV obtenido de https://www.kaggle.com/buddhiniw/breast-cancer-prediction/data
+
+## Selección y preparación de un juego de datos
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Elección del conjunto de datos
+
+Hemos escogido el dataset "Breast Cancer Wisconsin (Original)" obtenido en: https://www.kaggle.com/buddhiniw/breast-cancer-prediction/data, el cual nos proporciona 69  conjuntos de datos sobre las características físicas observadas en las células potencialmente afectadas por cáncer de mama. Los datos fueron recogidos entre Enero de 1989 y Noviembre de 1991 y fueron aportados por las siguientes entidades: University of Wisconsin Hospitals, Madison from Dr. William H. Wolberg.
+
+Los atributos estan formados por información obtenida de una imagen digitalizada de masa mamaria y describen características del núcleo de la célula.
+De cada imagen se observaron las distintas células disponibles en la muestra y de los 3 valores mas grandes se calculó la media, error estándar y "worst".
+Todos los valores de las funciones se recodifican con cuatro dígitos significativos.
+
+El potencial analítico de nuestro conjunto es la creación de un algoritmo de clasificación capaz de distinguir aquellas células afectadas y crear una clasificación entre tumores Benignos y Malignos con la intención de localizar el cáncer en fases tempranas y proceder a su diagnóstico.
+
+En nuestro caso tendremos los datos etiquetados por lo que seguiremos un proceso de análisis supervisado. Primeramente trataremos los datos y procederemos a una reducción de sus dimensiones en base a los índices de correlación. Respecto a los algoritmos a utilizar se tratarán mediante un knn con crossValidation y mediremos el grado de cumplimiento en base a la proporción de casos catalogados correctamente.
+
+
+## Exploración del conjunto de datos
+
+Importamos las librerías y los datos, este CSV ha sido obtenido de https://www.kaggle.com/buddhiniw/breast-cancer-prediction/data
+
+```{r message= FALSE, warning=FALSE}
+# https://cran.r-project.org/web/packages/ggplot2/index.html
+if (!require('ggplot2')) install.packages('ggplot2'); library('ggplot2')
+# https://cran.r-project.org/web/packages/dplyr/index.html
+if (!require('dplyr')) install.packages('dplyr'); library('dplyr')
+
+totalData<-read.csv("D:/Año4/MineriaDeDatos/Prac1/data.csv", header = TRUE, sep = ",")
+
+head(totalData)
+```
+
+Verificamos la estructura de datos principal
+```{r message= FALSE, warning=FALSE}
+str(totalData)
+```
+
+Procederemos a explicar los distintos campos:
+
+**ID number**
+  Int: Numero de identificación
+
+**Diagnosis**
+  Char: clasificación de diagnósticos, M para los malignos y B para los benignos
+
+**radius**
+  media de las distancias desde el centro hasta puntos del perimetro
+  
+**texture**
+  desviación estándar de los valores de la escala de grises
+
+**perimeter**
+  perímetro
+
+**area**
+  área
+
+**smoothness**
+  Variación local en el largo de los radios
+
+**compactness**
+  perímetro^2/area -1.0
+
+**concavity**
+  Severidad de las porciones cóncavas del contorno
+
+**concave points**
+  Número de puntos cóncavos del contorno
+
+**symmetry**
+  Simetría
+
+**fractal dimension**
+  "coastline approximation" - 1
+
+
+```{r message= FALSE, warning=FALSE}
+summary(totalData)
+```
+Estadísticas de valores vacíos.
+```{r message= FALSE, warning=FALSE}
+colSums(is.na(totalData))
+colSums(totalData=="")
+```
+Podemos ver a simple vista que la columna 33 está formada por NAs, por lo que la eliminaremos
+Por otro lado, dado que vamos a tomar los datos como pruebas individuales nos da igual a que usuario pertenezcan, por lo que eliminaremos la primera columna.
+
+```{r message= FALSE, warning=FALSE}
+totalData <- totalData[,-c(0:1)]
+```
+```{r message= FALSE, warning=FALSE}
+totalData <- totalData[,-32]
+head(totalData)
+```
+
+El resultado de estos cambios será un conjunto de 569 datos, con 31 columnas de atributos cada uno y sin valores vacíos. Como hemos indicado antes los valores se han recogido con 4 dígitos significativos adrede, por lo que normalizarlos podría suponer perder información, por lo que no los trataremos. Además la distribución de etiquetas será: 212 datos de tumores malignos (M) y 358 de tumores benignos (B). Mostraremos de forma visual este dato.
+
+```{r message= FALSE, warning=FALSE}
+round(prop.table(table(totalData$diagnosis)), 2)
+```
+```{r message= FALSE, warning=FALSE}
+ggplot(totalData, aes(x = totalData$diagnosis)) +
+  geom_bar(aes(fill = "blue")) +
+  ggtitle("Distribution of diagnosis for the entire dataset") +
+  theme(legend.position="none") +
+  xlab("Diagnosis")
+```
+```{r message= FALSE, warning=FALSE}
+diagnosis.table <- table(totalData$diagnosis)
+diagnosis.prop.table <- prop.table(diagnosis.table)*100
+lbls <- c("B", "M")
+pie(diagnosis.prop.table, labels = lbls, main="Malgin vs Benign cancers distribution")
+```
+Dado que tenemos tantos atributos crearemos tres grupos, uno de "means", otro de "standard error" y otro de "worst". Comenzaremos por realizar una inspección visual de los plots creados y sacaremos conclusiones en consecuencia, después realizaremos las modificaciones necesarias para escoger los mejores atributos
+
+```{r message= FALSE, warning=FALSE}
+totalData_mean <- totalData[ ,c("diagnosis", "radius_mean", "texture_mean","perimeter_mean", "area_mean", "smoothness_mean", "compactness_mean", "concavity_mean", "concave.points_mean", "symmetry_mean", "fractal_dimension_mean" )]
+
+totalData_se <- totalData[ ,c("diagnosis", "radius_se", "texture_se","perimeter_se", "area_se", "smoothness_se", "compactness_se", "concavity_se", "concave.points_se", "symmetry_se", "fractal_dimension_se" )]
+
+totalData_worst <- totalData[ ,c("diagnosis", "radius_worst", "texture_worst", "perimeter_worst", "area_worst", "smoothness_worst", "compactness_worst", "concavity_worst", "concave.points_worst", "symmetry_worst", "fractal_dimension_worst" )]
+```
+
+Crearemos histogramas para ver la distribución de las distintas variables. Comenzaremos con el histograma de medias, ya que será el más representativo.
+```{r message= FALSE, warning=FALSE}
+library(reshape2)
+ggplot(data = melt(totalData_mean, id.var = "diagnosis"), mapping = aes(x = value)) + 
+    geom_histogram(bins = 10, aes(fill=diagnosis), alpha=0.5) + facet_wrap(~variable, scales ='free_x')
+```
+
+Los atributos radius, perimeter, area, compactness, concavity y concate podrían ser usados para clasificar los casos de cancer, podemos observar en sus plots que tiende a haber una correlación entre valores más altos en estos parámetros y la existencia de tumores malignos (M). 
+
+Por el contrario texture, smoothness y dimension practicamente se sobreponen, lo que implica que no hay diferencia respecto a estos atributos entre tumores malignos y benignos. Para confirmar nuestras sospechas mostraremos el resto de histogramas, en el caso de "worst" se repiten los resultados, para "standard error" no serán demasiado útiles, pues es complicado hacer distinciones.
+
+```{r message= FALSE, warning=FALSE}
+ggplot(data = melt(totalData_se, id.var = "diagnosis"), mapping = aes(x = value)) + 
+    geom_histogram(bins = 10, aes(fill=diagnosis), alpha=0.5) + facet_wrap(~variable, scales ='free_x')
+```
+
+```{r message= FALSE, warning=FALSE}
+ggplot(data = melt(totalData_worst, id.var = "diagnosis"), mapping = aes(x = value)) + 
+    geom_histogram(bins = 10, aes(fill=diagnosis), alpha=0.5) + facet_wrap(~variable, scales = 'free_x')
+```
+
+Crearemos ahora una matriz de correlaciones para ver como se comportan unos atributos con otros. Si dos caracteristicas tienen niveles muy altos de correlación implicará que aportan información redundante. Se podría prescindir de una de ellas pero hay que asegurarse de que la correlación es lineal. Existirán casos en los cuales la correlación podría existir de todas formas y no ser lineal, proceder a su eliminación implicaría descartar posibles datos de utilidad.
+
+En el siguiente paso investigaremos si para hacer uso del algoritmo PCA nos quedamos con todas las variables o eliminamos algunas que resulten redundantes.
+
+En los siguientes plots vemos de dos formas distintas la correlación entre los 31 atributos posibles, cuanto más oscura sea la celda mayor índice de correlación entre ellas habrá.
+```{r message= FALSE, warning=FALSE}
+library(corrplot)
+corrplot(cor(totalData[,2:31]), order = 'hclust')
+```
+```{r message= FALSE, warning=FALSE}
+library("corrgram")
+corrgram(totalData, order=NULL, lower.panel=panel.shade, upper.panel=NULL, text.panel=panel.txt,
+         main="Corrgram of the data")
+```
+
+Para hacer uso de PCA probaremos tanto con el dataset original como con un dataset reducido, esta reducción se hará partiendo de lo antes mencionado: "Si dos caracteristicas tienen niveles muy altos de correlación implicará que aportan información redundante"
+
+Vamos a mostrar las variables que tienen una correlación >= 0.9, cifra que consideramos puede significar una alta correlación lineal. Haciendo uso de la función findCorrelation, la cual localiza estas variables mediante un algoritmo heurístico crearemos una nueva tabla que no contenga esas columnas, la llamaremos "totalData_NHC" (NHC = Not High Correlated).
+
+```{r message= FALSE, warning=FALSE}
+library("caret")
+highlyCor <- colnames(totalData)[findCorrelation(cor(totalData[,2:31]), cutoff = 0.9, verbose = TRUE)]
+```
+
+Hemos localizado 10 variables con una correlación >0.9, procederemos a descartarlas para la creación del nuevo dataset.
+```{r message= FALSE, warning=FALSE}
+highlyCor
+```
+```{r message= FALSE, warning=FALSE}
+totalData_NHC<- totalData[, which(!colnames(totalData) %in% highlyCor)]
+head(totalData_NHC)
+```
+
+## Preprocesado y gestión de características
+
+PCA es una de las técnicas de aprendizaje no supervisado, las cuales suelen aplicarse como parte del análisis exploratorio de los datos.
+Una de las aplicaciones de PCA es la reducción de dimensionalidad (variables), perdiendo la menor cantidad de información (varianza) posible y condensandola en unos pocos componentes: cuando contamos con un gran número de variables cuantitativas posiblemente correlacionadas (indicativo de existencia de información redundante), PCA permite reducirlas a un número menor de variables transformadas (componentes principales) que expliquen gran parte de la variabilidad en los datos. 
+
+Cada dimensión o componente principal generada por PCA será una combinación lineal de las variables originales, y serán además independientes o no correlacionadas entre sí.
+
+PCA también nos servirá como herramienta para la visualización de datos: En situaciones como nuestro caso con gran cantidad de variables lo que podríamos hacer es examinar todos ellos a base de representaciones bidimensionales pero la información obtenida sería solo una pequeña parte del total por lo que sería inútil.
+
+Dados los niveles tan altos de correlación procederemos a realizar un análisis de componentes principales (PCA), en nuestro caso esto nos permitirá observar tendencias, saltos o clústers de las relaciones entre observaciones y variables y entre las propias variables.
+
+PCA es uno de los algoritmos que se comporta mejor con datos estandarizados, es recomendable que tengan desviación estándar igual a 1 antes de aplicarlo, en nuestro caso y como hemos comentado al inicio es razonable argumentar que la posible pérdida de datos al realizar ese proceso no sale rentable, por lo que no los hemos modificado. 
+
+```{r message= FALSE, warning=FALSE}
+library(FactoMineR)
+library(factoextra)
+totalData_PCA <- PCA(totalData[, 2:31], graph = FALSE)
+fviz_screeplot(totalData_PCA, addlabels = TRUE, ylim = c(0, 50))
+```
+En un PCA nos interesa conocer la proporción de varianza explicada por cada uno de los componentes principales, o dicho de otra manera, cuanta información presente en los datos se pierde por la proyección de las observaciones sobre los primeros componentes principales.
+
+En el plot anterior observamos que PCA1 Y PCA2 explicarían el 63.3% de la varianza, lo que se traduce en prácticamente 2/3 de la información del dataset.
+En el siguiente plot podemos ver de una forma visual cada uno de todos los atributos cuanto contribuye en una escala de 1-5 a PCA1 y PCA2.
+
+En este tipo de gráfico, además de indicarse el % de varianza explicada por la primera (Dim1) y segunda componente (Dim2), las variables positivamente correlacionadas se agrupan juntas o próximas, mientras que las negativamente correlacionadas se representan en lados opuestos del origen o cuadrantes opuestos.
+La distancia entre las variables y el origen mide la calidad de la representación de las variables (mayor cuanto más próxima a la circunferencia o círculo de correlación, siendo éstas las que más contribuyen en los dos primeros componentes)
+
+```{r message= FALSE, warning=FALSE}
+fviz_pca_var(totalData_PCA, col.var="contrib",
+gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
+repel = TRUE # Avoid text overlapping
+) + theme_minimal() + ggtitle("Variables - PCA")
+
+```
+
+```{r message= FALSE, warning=FALSE}
+summary(totalData_PCA)
+```
+
+Necesitaremos hacer uso de 10 componentes principales para alcanzazar el 0.95 de la varianza y 17 para alcanzar el 0.99. El problema aquí es que a pesar de que hemos localizado las correlaciones más fuertes entre atributos, no los hemos eliminado, por lo que estamos haciendo uso de más componentes de los que podríamos necesitar.
+
+Por lo que realizaremos los mismos análisis con el dataset en el cual habíamos reducido dimensionalidad eliminando las variables redundantes.
+
+```{r message= FALSE, warning=FALSE}
+totalData_PCAreduced <- PCA(totalData_NHC, graph = FALSE)
+fviz_screeplot(totalData_PCAreduced, addlabels = TRUE, ylim = c(0, 50))
+```
+
+Podemos ver que los dos primeros componentes han pasado de suponer un 63.3% a suponer un 65.6% de la varianza.
+
+```{r message= FALSE, warning=FALSE}
+summary(totalData_PCAreduced)
+```
+
+```{r message= FALSE, warning=FALSE}
+cancer.pca2 <- prcomp(totalData_NHC, center=TRUE, scale=TRUE)
+pca_var2 <- cancer.pca2$sdev^2
+pve_df2 <- pca_var2 / sum(pca_var2)
+cum_pve2 <- cumsum(pve_df2)
+pve_table2 <- tibble(comp = seq(1:ncol(totalData_NHC)), pve_df2, cum_pve2)
+
+ggplot(pve_table2, aes(x = comp, y = cum_pve2)) + 
+  geom_point() + 
+  geom_abline(intercept = 0.95, color = "red", slope = 0)
+```
+
+Para alcanzar ahora el 0.95 de la varianza necesitaremos 9 componentes y para alcanzar el 0.99 necesitaremos 14. Se ha producido una mejoría.
+
+```{r message= FALSE, warning=FALSE}
+pca_df <- as.data.frame(cancer.pca2$x)
+ggplot(pca_df, aes(x=PC1, y=PC2, col=totalData$diagnosis)) + geom_point(alpha=0.5)
+```
+Podemos ver la separación que se ha hecho de la diagnosis por parte de los dos primeros componentes. La cual es bastante buena para comenzar e indica que los puntos pertenecientes al mismo tipo de cáncer tienden a tener unos niveles de expresión génica similares, niveles condensados en los componentes principales.
+
+```{r message= FALSE, warning=FALSE}
+df_pcs <- cbind(as_tibble(totalData$diagnosis), as_tibble(cancer.pca2$x))
+GGally::ggpairs(df_pcs, columns = 2:4, ggplot2::aes(color = value))
+```
+
+Como se puede ver en los gráficos anteriores, los primeros 3 componentes principales separan las dos clases solo hasta cierto punto, esto es de esperar ya que la varianza explicada por estos componentes no es grande y como hemos visto en plots anteriores, la diferencia en el % de varianza se reduce de forma exponencial, eso explica que las clasificaciones recién mostradas empeoren tanto a la hora de clasificar. 
+
+Así una vez finalizado el PCA podemos ver como partiendo de un problema con múltiples variables, primeramente hemos reducido el número total disponible haciendo uso de las correlaciones pasando de 31 a 21, posteriormente haciendo uso del PCA hemos conseguido representar todas las antiguas variables en 9 nuevos componentes que conservan el 95% de la información del dataset original.
+
+
+
+
+  
+
+
+
