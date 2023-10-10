@@ -6,23 +6,17 @@ This dataset contains comprehensive information about various physical character
 
 The primary objective of this project was to develop a **classification algorithm** capable of distinguishing between **benign and malignant tumors** in breast cancer cells. With the intention of early cancer detection, I used a **supervised learning approach**. Here's a summary of the project:
 
-## Data Selection and Preparation:
-Selected the "Breast Cancer Wisconsin (Original)" dataset, which consists of 69 features describing cell nuclei attributes.
-The data was preprocessed by removing columns with missing values and unwanted identifiers.
-Kept the data unnormalized, as normalizing it could result in information loss, given that the values were collected with precision.
+## Data Exploration: 
+I began by exploring the dataset's structure and its attributes, which describe various physical characteristics of breast cancer cells. I identified data quality issues and addressed missing values.
 
-## Exploratory Data Analysis (EDA):
+## Dimensionality Reduction: 
+Given the dataset's high dimensionality, I performed Principal Component Analysis (PCA) to reduce the number of variables while preserving essential information. This reduction enhanced the efficiency of subsequent modeling.
 
-Visualized data distributions, showing the proportion of malignant (M) and benign (B) tumors.
-Conducted a detailed analysis of attribute correlations using correlation matrices and plots.
+## Data Visualization: 
+I utilized libraries such as ggplot2, corrplot, and GGally to create informative visualizations, revealing patterns and correlations within the data.
 
-## Principal Component Analysis (PCA):
+## Machine Learning: 
+The project involved employing machine learning techniques, specifically k-Nearest Neighbors (k-NN) with cross-validation, to classify breast cancer cases as benign or malignant. I evaluated model performance and analyzed classification accuracy.
 
-Applied PCA to reduce the dimensionality of the dataset, taking into account the high correlations among some attributes.
-Identified and removed highly correlated attributes, optimizing the PCA for feature selection.
-Visualized the proportion of variance explained by each principal component.
-
-## Visualization:
-
-Created scatter plots showing the distribution of data points based on the first two principal components.
-Demonstrated that the PCA components improved the separation between malignant and benign tumor cases.
+## Result: 
+The analysis resulted in a refined dataset with reduced dimensionality while maintaining over 95% of the original data's variance. This allowed for effective modeling while mitigating the risk of overfitting. The project provided valuable insights into breast cancer diagnosis and improved classification accuracy.
